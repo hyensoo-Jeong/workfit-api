@@ -3,9 +3,18 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import Base, WorkerStatus, FactoryStatus
 from schemas import WorkerStatusCreate, FactoryStatusResponse
+from fastapi import FastAPI
+from fcm import send_fcm_notification
+from pydantic import BaseModel
 
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
+
+# 입력 형식 정의
+class AlertRequest(BaseModel):
+    device_token: str
+    title: str
+    body: str
 
 # DB 종속성
 def get_db():
@@ -31,3 +40,15 @@ def post_worker_status(data: WorkerStatusCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_status)
     return {"message": "Worker status saved"}
+
+@app.post("/raise-alert")
+def raise_alert(alert: AlertRequest):
+    status, result = send_fcm_notification(
+        device_token=alert.device_token,
+        title=alert.title,
+        body=alert.body
+    )
+    return {
+        "status": status,
+        "firebase_response": result
+    }
